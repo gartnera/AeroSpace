@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    strategy:
+      # fail-fast: false # Disable fail-fast in matrix
+      matrix:
+        os: [macos-15]
+    name: build-release
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: env # Debug
+      - uses: actions/checkout@v6
+      - run: ./.github/gh-actions-runner-xcode-select.sh
+      - run: brew install bash fish xcbeautify swiftly
+      - run: swiftly init --skip-install --assume-yes --verbose && swiftly install
+      - name: Install the Apple certificate and provisioning profile
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
+          p12-password: ${{ secrets.CERTIFICATES_P12_PASSWORD }}
+          
+      - name: Run build-release.sh and install-from-sources.sh
+        run: |
+          ./build-release.sh --codesign-identity "Apple Development: Alexander Gartner (QJMXJPV5B7)"
+          ./install-from-sources.sh --dont-rebuild
+
+      - name: Get zip path
+        id: zip_path
+        run: echo "zip_path=$(ls .release/*.zip)" >> $GITHUB_OUTPUT
+
+      - name: Upload build results
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: ${{ steps.zip_path.outputs.zip_path }}
+
+      - name: Create Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.zip_path.outputs.zip_path }}
+          draft: false
+          prerelease: false
