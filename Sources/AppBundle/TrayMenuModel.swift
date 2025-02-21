@@ -18,9 +18,11 @@ func updateTrayText() {
     TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first?.lets { "[\($0.uppercased())] " } ?? "") +
         sortedMonitors
         .map {
-            ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + $0.activeWorkspace.name
+            let name = $0.activeWorkspace.name
+            let prefix = ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1) ? "*" : " "
+            return prefix + name
         }
-        .joined(separator: " │ ")
+        .joined(separator: " │")
     TrayMenuModel.shared.workspaces = Workspace.all.map {
         let monitor = $0.isVisible || !$0.isEffectivelyEmpty ? " - \($0.workspaceMonitor.name)" : ""
         return WorkspaceViewModel(name: $0.name, suffix: monitor, isFocused: focus.workspace == $0)
