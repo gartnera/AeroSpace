@@ -1,0 +1,18 @@
+name: Rebase Upstream
+on:
+  schedule:
+    - cron: "0 */12 * * *"  # run twice daily
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gartnera/rebase-upstream-action@e57946a3f1a6002613816499afd96961fe37b41a
+        with:
+          branch: main
+          token: ${{ secrets.PAT }}
