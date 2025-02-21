@@ -5,10 +5,11 @@ on:
     branches:
       - 'main'
       - 'bobko/**'
+    tags:
+      - '*'
+  workflow_dispatch:
   pull_request:
     branches: [ "main" ]
-  schedule:
-    - cron: '0 0 * * *' # every day at 00:00
 
 jobs:
   build:
@@ -32,13 +33,44 @@ jobs:
       - run: ./script/install-dep.sh --all
       - run: ./build-debug.sh
       - run: ./run-tests.sh
-        # "-" means "Sign to run locally". There is no aerospace-codesign-certificate in GH Actions
-        # build-release.sh takes too much time to complete in macos-13.
-        # Running build-release.sh only in macos-15, cuts the build time twice in GH Actions.
-      - name: ./build-release.sh on macos-15
+      - name: Check macOS version
+        id: check_macos
         run: |
           sw_vers -productVersion
           if sw_vers -productVersion | grep -q "^15"; then
-            ./build-release.sh --codesign-identity -
-            ./install-from-sources.sh --dont-rebuild
+            echo "is_macos_15=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_macos_15=false" >> $GITHUB_OUTPUT
           fi
+      - name: Install the Apple certificate and provisioning profile
+        if: steps.check_macos.outputs.is_macos_15 == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
+          p12-password: ${{ secrets.CERTIFICATES_P12_PASSWORD }}
+          
+      - name: Run build-release.sh and install-from-sources.sh on macOS 15
+        if: steps.check_macos.outputs.is_macos_15 == 'true'
+        run: |
+          ./build-release.sh --codesign-identity "Apple Development: Alexander Gartner (QJMXJPV5B7)"
+          ./install-from-sources.sh --dont-rebuild
+
+      - name: Get zip path
+        id: zip_path
+        if: steps.check_macos.outputs.is_macos_15 == 'true'
+        run: echo "zip_path=$(ls .release/*.zip)" >> $GITHUB_OUTPUT
+
+      - name: Upload build results
+        if: steps.check_macos.outputs.is_macos_15 == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: ${{ steps.zip_path.outputs.zip_path }}
+
+      - name: Create Release
+        if: steps.check_macos.outputs.is_macos_15 == 'true' && github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.zip_path.outputs.zip_path }}
+          draft: false
+          prerelease: false
