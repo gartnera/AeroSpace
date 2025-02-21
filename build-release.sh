@@ -12,6 +12,8 @@ while test $# -gt 0; do
     esac
 done
 
+export OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime"
+
 #############
 ### BUILD ###
 #############
